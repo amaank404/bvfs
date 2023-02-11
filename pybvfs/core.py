@@ -38,6 +38,12 @@ class DirectoryNotFound(BVFSError):
     thrown
     """
 
+class DirectoryNotEmpty(BVFSError):
+    """
+    This error is raised when the deletion of a directory has been requested
+    but the directory is not empty.
+    """
+
 # Utility functions
 def _fitb(d: bytes, fitsize: int = BLOCK_SIZE):
     """
@@ -116,7 +122,7 @@ class BlockIO:
         self.cacheblocks = []
         self.cachesize = cachesize
     
-    def readblock(self, blocknum: int) -> bytes:
+    def readblock(self, blocknum: int) -> bytearray:
         if blocknum in self.cache:
             return self.cache[blocknum]
 
@@ -196,9 +202,9 @@ class BVFS:
                 return self._lastfreeblock - 1
             self._lastfreeblock += 1
     
-    def _deallocate(self, blockint: int) -> None:
-        self._blockio.writeblock(blockint, b'')
-        self._lastfreeblock = min(self._lastfreeblock, blockint)
+    def _deallocate(self, blocknum: int) -> None:
+        self._blockio.writeblock(blocknum, b'')
+        self._lastfreeblock = min(self._lastfreeblock, blocknum)
 
     def _writedirectorynode(self, blockint: int, nm: int, sb: int, name: str):
         block = self._blockio.readblock(blockint)
@@ -260,6 +266,32 @@ class BVFS:
                     else:
                         raise DirectoryNotFound("Given Path does not exist")
         return cnode
+    
+    def _purge_empty_directory_blocks(self, dirnum: int):
+        preventry = 0
+        prevblk = b''
+        dirnode = dirnum
+        while True:
+            blk = self._blockio.readblock(dirnode)
+            fp = _intfb(blk[24:24+8])
+            totalentries = 0
+            for x in range(992//124):
+                entry = blk[24+8+x*124:24+8+x*124+124]
+                if _intfb(entry[:8]) == 0:
+                    continue
+                else:
+                    totalentries += 1
+                    break
+            if totalentries == 0 and not dirnode == dirnum:
+                prevblk[24:24+8] = blk[24:24+8]
+                self._blockio.writeblock(preventry, prevblk)
+                self._deallocate(dirnode)
+            if fp != 0:
+                prevblk = blk
+                preventry = dirnode
+                dirnode = fp
+            else:
+                break
 
     def mkdir(self, dirname: str):
         """
@@ -277,12 +309,12 @@ class BVFS:
         """
         Checks if a path exists
         """
-        pdirnode, fname2 = self._opendirectory(nodename).split("/")
+        pdirnode, fname2 = self._opendirectory(nodename).rsplit("/", 1)
         dirnode = pdirnode
         while True:
             blk = self._blockio.readblock(dirnode)
             fp = _intfb(blk[24:24+8])
-            for x in range(992//8):
+            for x in range(992//124):
                 entry = blk[24+8+x*124:24+8+x*124+124]
                 if _intfb(entry[:8]) == 0:
                     continue
@@ -298,13 +330,12 @@ class BVFS:
         """
         Lists a directory
         """
-        pdirnode = self._opendirectory(dirname)
-        dirnode = pdirnode
+        dirnode = self._opendirectory(dirname)
         ls = []
         while True:
             blk = self._blockio.readblock(dirnode)
             fp = _intfb(blk[24:24+8])
-            for x in range(992//8):
+            for x in range(992//124):
                 entry = blk[24+8+x*124:24+8+x*124+124]
                 if _intfb(entry[:8]) == 0:
                     continue
@@ -315,6 +346,65 @@ class BVFS:
             else:
                 break
         return ls
+    
+    def rmdir(self, dirname: str):
+        """
+        Deletes a directory, Only works on empty directories
+        """
+        
+        pdirnode = dirnode = self._opendirectory(dirname)
+        while True:
+            blk = self._blockio.readblock(dirnode)
+            fp = _intfb(blk[24:24+8])
+            for x in range(992//124):
+                entry = blk[24+8+x*124:24+8+x*124+124]
+                if _intfb(entry[:8]) == 0:
+                    continue
+                else:
+                    raise DirectoryNotEmpty("Attempt to remove a directory that is not empty.")
+            if fp != 0:
+                dirnode = fp
+            else:
+                break
+
+        # Code to actually remove the directory
+        dirnode = pdirnode
+        while True:
+            blk = self._blockio.readblock(dirnode)
+            fp = _intfb(blk[24:24+8])
+            self._deallocate(dirnode)
+            if fp != 0:
+                dirnode = fp
+            else:
+                break
+
+        # Code to remove directory entry from parent
+        parentdir = self._opendirectory(dirname.rsplit("/", 1)[0])
+        fname = dirname.rsplit("/", 1)[1]
+        dirnode = parentdir
+        rmpentry = True
+        while rmpentry:
+            blk = self._blockio.readblock(dirnode)
+            fp = _intfb(blk[24:24+8])
+            for x in range(992//124):
+                entry = blk[24+8+x*124:24+8+x*124+124]
+                if _intfb(entry[:8]) == 0:
+                    continue
+                else:
+                    if entry[16:16+100].split(b'\0', 1)[0].decode('utf-8') == fname:
+                        nmpointer = _intfb(entry[:8])
+                        self._deallocate(nmpointer)
+                        blk[24+8+x*124:24+8+x*124+124] = bytearray(124)
+                        self._blockio.writeblock(dirnode, blk)
+                        rmpentry = False
+                        break
+            if fp != 0:
+                dirnode = fp
+            else:
+                break
+
+        # Purge Empty directory nodes in the parent directory
+        self._purge_empty_directory_blocks(parentdir)
 
     def close(self):
         block = self._blockio.readblock(0)
