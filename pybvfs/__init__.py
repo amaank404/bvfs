@@ -1,1 +1,1 @@
-from . import core, fsdump
+from . import core, fsdump, fsfix
