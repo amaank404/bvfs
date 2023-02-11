@@ -1,0 +1,26 @@
+@import url(https://fonts.googleapis.com/css2?family=Roboto);
+
+/* Font Configuration */
+td, th, table {
+    border: 1px solid black;
+    border-collapse: collapse;
+    padding: 0.4em;
+}
+body {font-family: Roboto, Verdana, Geneva, Tahoma, sans-serif}
+h1 { font-size: 3.5em; }
+h2 { font-size: 2.5em; }
+h3 { font-size: 2em; }
+h4 { font-size: 1.5em; }
+
+/* Background Colors */
+body { background-color: #c7ffed; }
+th { background-color: #ffdfaf; }
+td { background-color: #ebffd8; }
+
+/* Dark Theme */
+@media (prefers-color-scheme: dark) {
+    body { color: white; background-color: #142b2d;}
+    th {background-color: #473b26;}
+    td { background-color: #203d25;}
+    td, th, table {border: 1px solid #999999;}
+}

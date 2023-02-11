@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BVFS Specification</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <h1> BVFS </h1>
+    Block Virtual File System
+
+    <h2> Structure </h2>
+
+    <ol>
+        <li>First 1024 bytes are reseved for the root block</li>
+        <li>Blocks of 1024 bytes follow </li>
+    </ol>
+
+    <h2> Block Structure </h2>
+
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td> 1-bytes </td>
+            <td> Block Type </td>
+            <td> 
+                There are multiple types of blocks some of them are as follows:
+                <ol>
+                    <li> <b>Unknown (0) </b> - This block is undefined and does not container anything. </li>
+                    <li> <b>Data (1) </b> - This block contains data </li>
+                    <li> <b>SuperBlock (2) </b> - This block contains a continous list of datablocks and is doubly linked to other superblocks </li>
+                    <li> <b>NodeMetadata (3) </b> - This block lists metadata for a few nodes </li>
+                    <li> <b>Directory (4) </b> - This block contains list of all subnodes and name of itself. It is doubly linked in its nature</li>
+                    <li> <b>Root (5) </b> - This block is the first block of the whole table and contains information about the filesystem</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td> 23-bytes </td>
+            <td> Reserved </td>
+            <td> Currently serves no use but may be used in the future to add new features to the filesystem </td>
+        </tr>
+        <tr>
+            <td> 1000-bytes </td>
+            <td> Block Content </td>
+            <td> Contains appropriatly formatted data for the block </td>
+        </tr>
+    </table>
+
+    <h3>Data</h3>
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td> 2-bytes </td>
+            <td> Content Size </td>
+            <td> Contains an integer specifying the length of data in this block, Only the trailing block is allowed to have this value set, default value is the largest 16-bit integer </td>
+        <tr>
+            <td> 998-bytes </td>
+            <td> Data </td>
+            <td> Contains data without any strict format </td>
+        </tr>
+    </table>
+
+    <h3>SuperBlock</h3>
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td> 8-bytes </td>
+            <td> Previous SuperBlock </td>
+            <td> A 64-bit integer which tells the block number for the previous block. The number is stored in big endian format. A 0 indicates the end of superblock </td>
+        </tr>
+        <tr>
+            <td> 8-bytes </td>
+            <td> Forward SuperBlock </td>
+            <td> A 64=bit integer which tells the block number for next super block. The number is stored in big endian format. A 0 indicates the end of superblock </td>
+        </tr>
+        <tr>
+            <td> 984-bytes </td>
+            <td> Block Pointers </td>
+            <td> 
+                A block pointer is a 64-bit big endian integer that points to a block by its number. In this section, there are exactly <u>123</u> block pointers.
+                Which directly means that there are pointers to 123000 bytes of data in each superblock.
+            </td>
+        </tr>
+    </table>
+    
+    <h3>NodeMetadata</h3>
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td>2-bytes</td>
+            <td>Permissions</td>
+            <td>
+                These are unix-like permissions for each node either a directory or a file.
+                <ol>
+                    <li><b> Last 3-bits </b> are permissions defined for everyone</li>
+                    <li><b> Last 6 to 3-bits </b> are permissions defined for group owner</li>
+                    <li><b> Last 9 to 6-bits </b> are permissions defined for the node owner</li>
+                    <li>Rest is reserved</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td>4-bytes</td>
+            <td>Group ID</td>
+            <td>Contains a group id integer that is assigned by the OS to the system, when it is used as a regular file system, default group 0 is used</td>
+        </tr>
+        <tr>
+            <td>4-bytes</td>
+            <td>User ID</td>
+            <td>Contains the user id integer that is assigned by the OS. By default it is the user that created the file. Default user is 0</td>
+        </tr>
+        <tr>
+            <td>8-bytes</td>
+            <td>Node Size</td>
+            <td>Contains the node size, this is not always correct in partially corrupted systems. A recovery tool can be used to fix this easily</td>
+        </tr>
+        <tr>
+            <td>1-byte</td>
+            <td>Node Type</td>
+            <td>
+                Contains the node type information. Node type can be either of the following:
+                <ol>
+                    <li><b>Unknown (0)</b> - This suggests that the node type is unknown and is corrupted</li>
+                    <li><b>File (1)</b> - File node type are those that contain superblock </li>
+                    <li><b>Directory (2)</b> - Directory node types are those which contain other files and directories</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td>Leftover Space</td>
+            <td>Reserved</td>
+            <td>Reserved for future use in later versions for the purpose of backwards compatibility</td>
+        </tr>
+    </table>
+
+    <h3>Directory</h3>
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td>8-bytes</td>
+            <td>Forward Pointer</td>
+            <td>Contains a Block Number as a 64-bit integer which points to the extended list of this directory listing. By default if this is the last directory entry, it must default to 0</td>
+        </tr>
+        <tr>
+            <td>124-bytes</td>
+            <td>Entry</td>
+            <td>
+                <table>
+                    <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+                    <tr>
+                        <td>8-bytes</td>
+                        <td>NodeMetadata Pointer</td>
+                        <td>Points to the node metadata associated with this node. When 0, it means that this entry slot is empty</td>
+                    </tr>
+                    <tr>
+                        <td>8-bytes</td>
+                        <td>SuperBlock/Dir Pointer</td>
+                        <td>Points to the first superblock of the file, when 0, it indicates the presence of an empty file and when the node type is a directory it points to the directory.</td>
+                    </tr>
+                    <tr>
+                        <td>100-bytes</td>
+                        <td>Node Name</td>
+                        <td>The name of the node. Commonly reffered to as the file name or directory name. Must be Null Terminated.</td>
+                    </tr>
+                    <tr>
+                        <td>Leftover Space</td>
+                        <td>Reserved</td>
+                        <td>Reserved for future use</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td>Above Repeated</td>
+            <td>Entries</td>
+            <td>All the remaining space is filled by other entries</td>
+        </tr>
+    </table>
+
+    <h3>Root</h3>
+    <table>
+        <tr><th>Size</th><th>Name</th><th>Description</th></tr>
+        <tr>
+            <td>4-bytes</td>
+            <td>Constant Identifier</td>
+            <td>Contains exactly 'BvFs' (ASCII) to identify the file system correctly.</td>
+        </tr>
+        <tr>
+            <td>2-byte</td>
+            <td>Version</td>
+            <td>Contains an integer that tells what is the version of the filesystem contained</td>
+        </tr>
+        <tr>
+            <td>8-byte</td>
+            <td>Root Directory</td>
+            <td>Contains the block number for the root directory. A root directory has no permissions and all other drives must be directories directly under it</td>
+        </tr>
+        <tr>
+            <td>1-byte</td>
+            <td>Locked</td>
+            <td>This integer must be exactly 0 for it to be safe to operate on the filesystem. If not 0, make sure to use a recovery tool to restore the file system. This is set on opening the filesystem and unset on closing the filesystem.</td>
+        </tr>
+    </table>
+    
+    
+    <h2>Compressibility</h2>
+    This file system is highly compressable and can be compressed via algorithms like
+    gzip, very efficiently. Even a basic single character repetetion based compression
+    algorithm can compress it significantly. This is due to high amounts of null in the
+    file system. This ability can be used to compress the file system
+    for long term storage or transport over internet.
+
+    <h2>Intended Applications</h2>
+    <ul>
+        <li>Software Updates</li>
+        <li>Container Based Platforms like Docker</li>
+        <li>One easy way to package game assets into a single file that is readable and writable inplace.</li>
+    </ul>
+
+    <h2>Tools Provided</h2>
+    BVFS comes with a handfull of tools to fix common issues and inspect the file system.
+    Here is a comprehensive list of them
+    
+    <h3>BVFSDump</h3>
+    Dumps all the block headers and block related informations to the standard output.
+    This can be used for debugging while developing the file system. It does not dump
+    the actual file data.
+
+    <h3>BVFSFix</h3>
+    Fixes common issues like failed lock, dangling pointers, hanging blocks.
+</body>
+</html>
