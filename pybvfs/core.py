@@ -102,7 +102,7 @@ class BlockIO:
     Note: This is not meant to be used and is there for internal purposes only.
     This class is liable to have breaking unannounced changes.
     """
-    def __init__(self, file, block_size: int = BLOCK_SIZE) -> None:
+    def __init__(self, file, block_size: int = BLOCK_SIZE, cachesize: int = 100) -> None:
         self.file = file
         self.bs = block_size
         self.file.seek(0, 2)
@@ -110,21 +110,46 @@ class BlockIO:
         if extra := (fsize % block_size) != 0:
             self.file.truncate(fsize-extra)
         self.blocklen = fsize//block_size
+        self.file.seek(0)
+        self.previousblocknum = 0
+        self.cache = {}
+        self.cacheblocks = []
+        self.cachesize = cachesize
     
     def readblock(self, blocknum: int) -> bytes:
-        self.file.seek(self.bs*blocknum)
-        return bytearray(self.file.read(self.bs))
+        if blocknum in self.cache:
+            return self.cache[blocknum]
+
+        if self.previousblocknum+1 != blocknum:
+            self.file.seek(self.bs*blocknum)
+            self.previousblocknum = blocknum
+        else:
+            self.previousblocknum += 1
+        data = bytearray(self.file.read(self.bs))
+        self.cache[blocknum] = data
+        self.cacheblocks.append(blocknum)
+        if len(self.cacheblocks) > self.cachesize:
+            del self.cache[self.cacheblocks.pop(0)]
+        return data
     
     def writeblock(self, blocknum: int, data: bytes = b'', write: bool = True) -> None:
-
         if not isinstance(blocknum, int):
             raise TypeError("Block number must be an integer")
+
+        if self.previousblocknum+1 != blocknum:
+            self.file.seek(self.bs*blocknum)
+            self.previousblocknum = blocknum
+        else:
+            self.previousblocknum += 1
         if blocknum >= self.blocklen:
             self.file.truncate((blocknum+1)*self.bs)
             self.blocklen = blocknum + 1
+        
         if write:
-            self.file.seek(self.bs*blocknum)
-            self.file.write(_fitb(data, self.bs))
+            pdata = _fitb(data, self.bs)
+            if blocknum in self.cache:
+                self.cache[blocknum] = bytearray(pdata)
+            self.file.write(pdata)
 
     def __len__(self) -> int:
         return self.blocklen
@@ -134,11 +159,12 @@ class BlockIO:
 class BVFS:
     """
     BVFS class allows you to open a file by its name and interract
-    with its underlying filesystem.
+    with its underlying filesystem. Cache limit can be set to set
+    the amount of blocks it should cache.
     """
-    def __init__(self, filename: str) -> None:
+    def __init__(self, filename: str, cachelimit: int = 1000) -> None:
         self._fp = open(filename, 'r+b')
-        self._blockio = BlockIO(self._fp)
+        self._blockio = BlockIO(self._fp, cachesize=cachelimit)
         self._lastfreeblock = 0  # This variable is used to keep the track of the first free block contrary to its name.
         
         block = self._blockio.readblock(0)  # Read the root block
@@ -246,6 +272,27 @@ class BVFS:
         dirp = self._allocate()
         self._blockio.writeblock(dirp, _Blocks.createDirectoryBlock())
         self._writedirectorynode(pdirnode, nm, dirp, cdir)
+
+    def exists(self, nodename: str) -> bool:
+        """
+        Checks if a path exists
+        """
+        pdirnode, fname2 = self._opendirectory(nodename).split("/")
+        dirnode = pdirnode
+        while True:
+            blk = self._blockio.readblock(dirnode)
+            fp = _intfb(blk[24:24+8])
+            for x in range(992//8):
+                entry = blk[24+8+x*124:24+8+x*124+124]
+                if _intfb(entry[:8]) == 0:
+                    continue
+                elif entry[16:16+100].split(b'\0', 1)[0].decode('utf-8') == fname2:
+                    return True
+            if fp != 0:
+                dirnode = fp
+            else:
+                break
+        return False
 
     def lsdir(self, dirname: str):
         """

@@ -13,7 +13,7 @@ btype = {
     5: "Root"
 }
 
-def dumpsystem(system):
+def dumpsystem(system) -> str:
     ofp = StringIO()
     tprint = partial(print, file=ofp)
     with open(system, "r+b") as fp:
