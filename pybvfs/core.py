@@ -406,6 +406,12 @@ class BVFS:
         # Purge Empty directory nodes in the parent directory
         self._purge_empty_directory_blocks(parentdir)
 
+    def open(self, filename: str, mode: str):
+        """
+        Classic python like open function for opening a pythonic file api based object.
+        """
+        # TODO: Create this function
+
     def close(self):
         block = self._blockio.readblock(0)
         block[38] = 0 # unset the locked flag
