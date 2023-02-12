@@ -1,5 +1,6 @@
 
 from functools import partial
+from threading import Lock
 
 # Constants
 FS_VERSION=1
@@ -106,7 +107,7 @@ class BlockIO:
     """
     Block IO provides a way to read and write to files in terms of blocks.
     Note: This is not meant to be used and is there for internal purposes only.
-    This class is liable to have breaking unannounced changes.
+    This class is liable to have breaking unannounced changes. It is thread safe.
     """
     def __init__(self, file, block_size: int = BLOCK_SIZE, cachesize: int = 100) -> None:
         self.file = file
@@ -121,10 +122,14 @@ class BlockIO:
         self.cache = {}
         self.cacheblocks = []
         self.cachesize = cachesize
+        self.lock = Lock()
     
     def readblock(self, blocknum: int) -> bytearray:
         if blocknum in self.cache:
             return self.cache[blocknum]
+        
+        
+        self.lock.acquire()
 
         if self.previousblocknum+1 != blocknum:
             self.file.seek(self.bs*blocknum)
@@ -132,16 +137,19 @@ class BlockIO:
         else:
             self.previousblocknum += 1
         data = bytearray(self.file.read(self.bs))
+
         self.cache[blocknum] = data
         self.cacheblocks.append(blocknum)
         if len(self.cacheblocks) > self.cachesize:
             del self.cache[self.cacheblocks.pop(0)]
+
+        self.lock.release()
         return data
     
     def writeblock(self, blocknum: int, data: bytes = b'', write: bool = True) -> None:
         if not isinstance(blocknum, int):
             raise TypeError("Block number must be an integer")
-
+        self.lock.acquire()
         if self.previousblocknum+1 != blocknum:
             self.file.seek(self.bs*blocknum)
             self.previousblocknum = blocknum
@@ -156,6 +164,7 @@ class BlockIO:
             if blocknum in self.cache:
                 self.cache[blocknum] = bytearray(pdata)
             self.file.write(pdata)
+        self.lock.release()
 
     def __len__(self) -> int:
         return self.blocklen
@@ -166,7 +175,7 @@ class BVFS:
     """
     BVFS class allows you to open a file by its name and interract
     with its underlying filesystem. Cache limit can be set to set
-    the amount of blocks it should cache.
+    the amount of blocks it should cache. This is also thread safe.
     """
     def __init__(self, filename: str, cachelimit: int = 1000) -> None:
         self._fp = open(filename, 'r+b')
