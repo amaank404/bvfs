@@ -45,6 +45,18 @@ class DirectoryNotEmpty(BVFSError):
     but the directory is not empty.
     """
 
+class FileAlreadyExists(BVFSError):
+    """
+    This error is raised when a file already exists in a situation where
+    it is not supposed to exist
+    """
+
+class FileNotFound(BVFSError):
+    """
+    This error is raised when an attempt to open or access a file that
+    does not exist is made.
+    """
+
 # Utility functions
 def _fitb(d: bytes, fitsize: int = BLOCK_SIZE):
     """
@@ -168,6 +180,26 @@ class BlockIO:
 
     def __len__(self) -> int:
         return self.blocklen
+
+class BVFSFile:
+    def __init__(self, parent: "BVFS", superblock: int) -> None:
+        self.superblock = superblock
+        self.cur = superblock
+        self.cursuperblock = 0
+        self.curblock = 0
+        self.curpos = 0
+
+    def write(self, data):
+        pass
+
+    def seek(self, pos: int, whence: int = 0):
+        if whence == 0:
+            blocknum = posblock = pos//BLOCK_SIZE
+            cur  # TODO: Complete this
+        elif whence == 1:
+            self  # TODO: Complete this
+        else:
+            raise ValueError("Whence is not in 0, 1, 2")
 
 
 # The Standard BVFS class to perform all the IO operations
@@ -307,7 +339,7 @@ class BVFS:
         Create a directory with the given dirname the dirname
         is split by forward slash
         """
-        pdir, cdir =dirname.rsplit("/", 1)
+        pdir, cdir = dirname.rsplit("/", 1)
         pdirnode = self._opendirectory(pdir)
         nm = self._createnodemetadata(2)
         dirp = self._allocate()
@@ -419,7 +451,48 @@ class BVFS:
         """
         Classic python like open function for opening a pythonic file api based object.
         """
-        # TODO: Create this function
+        if self.exists(filename):
+            if 'x' in mode:
+                raise FileAlreadyExists("Can not create the file in exclusive mode as the file already exists")
+            elif 'w' in mode:
+                self.rmfile(filename)
+        else:
+            if 'r' in mode or '+' in mode or 'a' in mode:
+                raise FileNotFound()
+            else:
+                raise ValueError("Mode unknown")
+
+        if 'w' in mode or 'x' in mode:
+            pdir, fname = filename.rsplit("/", 1)
+            nm = self._createnodemetadata(1)
+            pdirnode = self._opendirectory(pdir)
+            self._writedirectorynode(pdirnode, nm, 0, fname)
+            return BVFSFile(self, 0)
+        elif 'r' in mode or 'a' in mode:
+            pdir, fname = filename.rsplit("/", 1)
+            pdirnode = self._opendirectory(fname)
+            while True:
+                blk = self._blockio.readblock(pdirnode)
+                for x in (992//124):
+                    entry = blk[24+8+x*124:24+8+x*124+124]
+                    if (nmnum := _intfb(entry[:8])) != 0:
+                        if entry[16:16+100].decode('utf-8') == fname:
+                            nmblk = self._blockio.readblock(nmnum)
+                            if nmblk[24+18] != 1:
+                                raise FileNotFound("Provided path exists but is not a file")
+                            else:
+                                return BVFSFile(self, _intfb(entry[8:16]))
+                if (fp := _intfb(blk[24:24+8])) != 0:
+                    pdirnode = fp
+                else:
+                    raise FileNotFound("File does not exist")
+        
+    def rmfile(self, filename: str):
+        """
+        Removes a file, if the file is not found an error is raised
+        """
+        # TODO: Write this function
+        
 
     def close(self):
         block = self._blockio.readblock(0)
