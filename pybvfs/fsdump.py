@@ -42,7 +42,11 @@ def dumpsystem(fp) -> str:
             tprint(f"\tForward SuperBlock: {intfb(blk[24+8:24+16])}")
             tprint("\tSuperblock Pointers:")
             for x in range(984//8):
-                tprint(f"\t\t- {intfb(blk[24+16+x*8: 24+16+x*8+8])}")
+                if x % 10 == 0:
+                    tprint(f"\n\t\t- {intfb(blk[24+16+x*8: 24+16+x*8+8])}", end='')
+                else:
+                    tprint(f" {intfb(blk[24+16+x*8: 24+16+x*8+8])}", end='')
+            tprint()
         
         elif blk[0] == 3:
             tprint("\tPermissions:")
