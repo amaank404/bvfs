@@ -3,28 +3,24 @@ import pybvfs
 pybvfs.core.createFs("fs.bvfs")
 fs = pybvfs.core.BVFS("fs.bvfs")
 fs.mkdir("/abc")
-fs.mkdir("/abc/xyz")
-for x in range(15):
-    fs.mkdir(f"/dirno{x}")
 
-print(fs.lsdir("/"))
-print(fs.lsdir("/abc"))
-print(fs.lsdir("/abc/xyz"))
+fp = fs.open("/abc/Hello.txt", "w")
 
-for x in range(10):
-    fs.rmdir(f"/dirno{x}")
+data = b''
+for x in range(200):
+    data += "abcd{x}\x01".format(x=x).encode('utf-8')
 
-print(pybvfs.fsdump.dumpsystem(fs._fp))
+fp.write(data)
+del fp
 
-fs.rmdir("/dirno10")
-fs.mkdir("/abcdef")
-fs.mkdir("/abcdef/abc231")
-for x in range(15):
-    fs.mkdir(f"/dirno{x}")
-print(fs.lsdir("/"))
+fp2 = fs.open("/abc/Hello.txt", "r")
+dataread = fp2.read()
+del fp2
 
 fs.close()
 
 with open("fs.bvfs", "r+b") as fp:
-    pybvfs.fsfix.removeTruncatingBlocks(fp)
+#    pybvfs.fsfix.removeTruncatingBlocks(fp)
     print(pybvfs.fsdump.dumpsystem(fp))
+
+print(f"Is data equal?: {dataread==data}")
