@@ -304,10 +304,11 @@ class BVFSFile:
         return self.curpos % 998 == 0 and self.curpos != 0
 
     def _islastblock(self):
-        return self.curblock % 123 == 0 and self.curblock != 0
+        return self.curblock % 122 == 0 and self.curblock != 0
 
     def _nextblock(self, create: bool = False) -> bool:
-
+        if not create and self.curblock == 122:
+            pass
         if self._islastblock() or self.cursbaddr == 0:
             if not self._nextsuperblock(create):
                 return False
@@ -341,19 +342,21 @@ class BVFSFile:
                 sb = self.parent._allocate()
                 self.parent._blockio.writeblock(sb, sbdata)
                 if self.cursbaddr != 0:
-                    self.superblockblk[24:24+8] = _inttb(sb, 8)
+                    self.superblockblk[24+8:24+16] = _inttb(sb, 8)
                     self.parent._blockio.writeblock(
                         self.cursbaddr, self.superblockblk)
                 else:
                     self.superblock = sb
                 self.cursbaddr = sb
                 self.cursuperblock += 1
-                forwardpointer = sb
                 self.superblockblk = sbdata
                 return True
             else:
                 return False
-        self.superblockblk = self.parent._blockio.readblock(forwardpointer)
+        else:
+            self.superblockblk = self.parent._blockio.readblock(forwardpointer)
+            self.cursbaddr = forwardpointer
+            self.cursuperblock += 1
         return True
     
     def read(self, numbytes: int = None):
