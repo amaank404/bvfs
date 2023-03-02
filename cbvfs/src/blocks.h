@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#pragma pack(1)
+#pragma pack(push, 1)
 typedef struct BVFSBlockRoot {
     uint8_t identifier[4];
     uint16_t version;
@@ -10,25 +10,21 @@ typedef struct BVFSBlockRoot {
     uint8_t locked;
 } BVFSBlockRoot_t;
 
-#pragma pack(1)
 typedef struct BVFSBlockUnknown {
     uint8_t data[1000];
 } BVFSBlockUnknown_t;
 
-#pragma pack(1)
 typedef struct BVFSBlockSB {
     uint64_t psb;
     uint64_t fsb;
     uint64_t bp[BVFS_SB_ENTRY_COUNT];
 } BVFSBlockSB_t;
 
-#pragma pack(1)
 typedef struct BVFSBlockData {
     uint16_t csize;
     uint8_t data[998];
 } BVFSBlockData_t;
 
-#pragma pack(1)
 typedef struct BVFSDirEntry {
     uint64_t nmpointer;
     uint64_t dpointer;
@@ -36,13 +32,11 @@ typedef struct BVFSDirEntry {
     uint8_t reserved[124-100-8-8];
 } BVFSDirEntry_t;
 
-#pragma pack(1)
 typedef struct BVFSBlockDir {
     uint64_t fp;
     BVFSDirEntry_t entries[BVFS_DIR_ENTRY_COUNT];
 } BVFSBlockDir_t;
 
-#pragma pack(1)
 typedef struct BVFSBlockNM {
     uint16_t perms;
     uint32_t gid;
@@ -60,12 +54,12 @@ typedef union BVFSBlockContent {
     BVFSBlockUnknown_t rawb;
 } BVFSBlockContent_t;
 
-#pragma pack(1)
 typedef struct BVFSBlock {
     uint8_t blocktype;
     uint8_t reserved[23];
     BVFSBlockContent_t d;
 } BVFSBlock_t;
+#pragma pack(pop)
 
 BVFSBlock_t createRootBlock(int rootdir);
 BVFSBlock_t createDirectoryBlock(int fp);

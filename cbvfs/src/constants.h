@@ -9,6 +9,7 @@
 #define BVFS_SB_ENTRY_COUNT (984/sizeof(uint64_t))
 #define BVFS_DIR_ENTRY_COUNT (992/124)
 #define BVFS_VERSION 1
+#define BVFS_VERSION_STR "v1"
 
 // Block types
 #define BVFS_BROOT 5
