@@ -116,5 +116,9 @@ int bvfsOpen(BVFS_t* bvfs, char* fname) {
 }
 
 void bvfsClose(BVFS_t* bvfs) {
-    //TODO: Create This
+    BVFSBlock_t blk = blockread(0, bvfs->fp);
+    blk.d.rb.locked = 0;
+    blockwrite(0, &blk, bvfs->fp);
+    fclose(bvfs->fp);
+    bvfs->fp = NULL;
 }
