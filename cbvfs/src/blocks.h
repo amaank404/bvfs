@@ -3,65 +3,65 @@
 #include <stdint.h>
 
 #pragma pack(push, 1)
-typedef struct BVFSBlockRoot {
+typedef struct bvfsBlockRoot {
     uint8_t identifier[4];
     uint16_t version;
     uint64_t rootdir;
     uint8_t locked;
-} BVFSBlockRoot_t;
+} bvfsBlockRoot_t;
 
-typedef struct BVFSBlockUnknown {
+typedef struct bvfsBlockUnknown {
     uint8_t data[1000];
-} BVFSBlockUnknown_t;
+} bvfsBlockUnknown_t;
 
-typedef struct BVFSBlockSB {
+typedef struct bvfsBlockSB {
     uint64_t psb;
     uint64_t fsb;
     uint64_t bp[BVFS_SB_ENTRY_COUNT];
-} BVFSBlockSB_t;
+} bvfsBlockSB_t;
 
-typedef struct BVFSBlockData {
+typedef struct bvfsBlockData {
     uint16_t csize;
     uint8_t data[998];
-} BVFSBlockData_t;
+} bvfsBlockData_t;
 
-typedef struct BVFSDirEntry {
+typedef struct bvfsDirEntry {
     uint64_t nmpointer;
     uint64_t dpointer;
     uint8_t name[100];
     uint8_t reserved[124-100-8-8];
-} BVFSDirEntry_t;
+} bvfsDirEntry_t;
 
-typedef struct BVFSBlockDir {
+typedef struct bvfsBlockDir {
     uint64_t fp;
-    BVFSDirEntry_t entries[BVFS_DIR_ENTRY_COUNT];
+    bvfsDirEntry_t entries[BVFS_DIR_ENTRY_COUNT];
 } BVFSBlockDir_t;
 
-typedef struct BVFSBlockNM {
+typedef struct bvfsBlockNM {
     uint16_t perms;
     uint32_t gid;
     uint32_t uid;
     uint64_t size;
     uint8_t type;
-} BVFSBlockNM_t;
+} bvfsBlockNM_t;
 
-typedef union BVFSBlockContent {
-    BVFSBlockRoot_t rb;
-    BVFSBlockData_t db;
-    BVFSBlockSB_t sb;
+typedef union bvfsBlockContent {
+    bvfsBlockRoot_t rb;
+    bvfsBlockData_t db;
+    bvfsBlockSB_t sb;
     BVFSBlockDir_t dirb;
-    BVFSBlockNM_t nm;
-    BVFSBlockUnknown_t rawb;
-} BVFSBlockContent_t;
+    bvfsBlockNM_t nm;
+    bvfsBlockUnknown_t rawb;
+} bvfsBlockContent_t;
 
-typedef struct BVFSBlock {
+typedef struct bvfsBlock {
     uint8_t blocktype;
     uint8_t reserved[23];
-    BVFSBlockContent_t d;
-} BVFSBlock_t;
+    bvfsBlockContent_t d;
+} bvfsBlock_t;
 #pragma pack(pop)
 
-BVFSBlock_t createRootBlock(int rootdir);
-BVFSBlock_t createDirectoryBlock(int fp);
-BVFSBlock_t createNodeMetadataBlock(int perms, int gid, int uid, int size, int type);
-BVFSBlock_t createSuperBlock(int psb, int fsb);
+bvfsBlock_t createRootBlock(int rootdir);
+bvfsBlock_t createDirectoryBlock(int fp);
+bvfsBlock_t createNodeMetadataBlock(int perms, int gid, int uid, int size, int type);
+bvfsBlock_t createSuperBlock(int psb, int fsb);

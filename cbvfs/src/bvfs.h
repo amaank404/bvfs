@@ -1,9 +1,10 @@
-typedef struct BVFS
+typedef struct bvfs
 {
     FILE* fp;
     int lastfreeblock;
     int rootdir;
-} BVFS_t;
+    int blocklen;
+} bvfs_t;
 
 
 int createFs(char* fname);

@@ -23,7 +23,7 @@ char* geterror() {
     return bvfserror;
 }
 
-static BVFSBlock_t cvtblock(BVFSBlock_t data) {
+static bvfsBlock_t cvtblock(bvfsBlock_t data) {
     if (data.blocktype == BVFS_BDATA) {
         data.d.db.csize = store16(data.d.db.csize);
     } else if (data.blocktype == BVFS_BSUPERBLOCK) {
@@ -50,15 +50,15 @@ static BVFSBlock_t cvtblock(BVFSBlock_t data) {
     return data;
 }
 
-static void blockwrite(int b, BVFSBlock_t *data, FILE* fp) {
-    BVFSBlock_t blk = *data;
+static void blockwrite(int b, bvfsBlock_t *data, FILE* fp) {
+    bvfsBlock_t blk = *data;
     blk = cvtblock(blk);
     fseek(fp, b*BVFS_BLOCK_SIZE, SEEK_SET);
     fwrite(&blk, BVFS_BLOCK_SIZE, 1, fp);
 }
 
-static BVFSBlock_t blockread(int b, FILE* fp) {
-    BVFSBlock_t data;
+static bvfsBlock_t blockread(int b, FILE* fp) {
+    bvfsBlock_t data;
     fseek(fp, b*BVFS_BLOCK_SIZE, SEEK_SET);
     fread(&data, BVFS_BLOCK_SIZE, 1, fp);
     data = cvtblock(data);
@@ -73,7 +73,7 @@ int createFs(char* fname) {
         return BVFS_ERR;
     }
 
-    BVFSBlock_t blk = createRootBlock(1);
+    bvfsBlock_t blk = createRootBlock(1);
     blockwrite(0, &blk, fp);
     blk = createDirectoryBlock(0);
     blockwrite(1, &blk, fp);
@@ -82,7 +82,7 @@ int createFs(char* fname) {
     return BVFS_OK;
 }
 
-int bvfsOpen(BVFS_t* bvfs, char* fname) {
+int bvfsOpen(bvfs_t* bvfs, char* fname) {
     FILE* fp;
     fopen_s(fp, fname, "rb+");
     if (fp == NULL) {
@@ -90,7 +90,7 @@ int bvfsOpen(BVFS_t* bvfs, char* fname) {
         return BVFS_ERR;
     }
 
-    BVFSBlock_t blk = blockread(0, fp);
+    bvfsBlock_t blk = blockread(0, fp);
     if (blk.blocktype != BVFS_BROOT) {
         writeerror("Unknown block type, NOT A ROOT BLOCK");
         return BVFS_ERR;
@@ -111,14 +111,49 @@ int bvfsOpen(BVFS_t* bvfs, char* fname) {
     bvfs->fp = fp;
     bvfs->lastfreeblock = 0;
     bvfs->rootdir = blk.d.rb.rootdir;
+    
+    fseek(fp, 0, SEEK_END);
+    bvfs->blocklen = ftell(fp)/BVFS_BLOCK_SIZE;
+    fseek(fp, 0, SEEK_SET);
+
     blk.d.rb.locked = 0xff;
     blockwrite(0, &blk, fp);
 }
 
-void bvfsClose(BVFS_t* bvfs) {
-    BVFSBlock_t blk = blockread(0, bvfs->fp);
-    blk.d.rb.locked = 0;
-    blockwrite(0, &blk, bvfs->fp);
+void bvfsClose(bvfs_t* bvfs) {
+    int lockedOffset = offsetof(bvfsBlock_t, d.rb.locked);
+    uint8_t data = 0;
+    fseek(bvfs->fp, lockedOffset, SEEK_SET);
+    fwrite(data, 1, 1, bvfs->fp);
     fclose(bvfs->fp);
     bvfs->fp = NULL;
+}
+
+int bvfsAllocate(bvfs_t* bvfs) {
+    int lastblk;
+
+    while (1) {
+        if (bvfs->lastfreeblock >= bvfs->blocklen) {
+            lastblk = bvfs->lastfreeblock;
+            bvfs->lastfreeblock += 1;
+            return lastblk;
+        } else {
+            fseek(bvfs->fp, BVFS_BLOCK_SIZE*bvfs->lastfreeblock, SEEK_SET);
+            uint8_t buf;
+            fread_s(buf, 1, 1, 1, bvfs->fp);
+            if (buf == 0) {
+                lastblk = bvfs->lastfreeblock;
+                bvfs->lastfreeblock += 1;
+                return lastblk;
+            } else {
+                bvfs->lastfreeblock += 1;
+            }
+        }
+    }
+}
+
+void deallocate(bvfs_t* bvfs, int b) {
+    fseek(bvfs->fp, BVFS_BLOCK_SIZE*b, SEEK_SET);
+    uint8_t data = BVFS_BUNKNOWN;
+    fwrite(data, 1, 1, bvfs->fp);
 }
